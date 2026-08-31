@@ -1,0 +1,3 @@
+model,update,sample_count,correct_count,accuracy_percent,test_error_percent,mean_loss,used_for_selection
+plain20,64000,10000,9043,90.43,9.57,0.39128451681137083,false
+resnet20,64000,10000,9149,91.49,8.51,0.3615921175956726,false
