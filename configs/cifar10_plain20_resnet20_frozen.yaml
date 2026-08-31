@@ -1,0 +1,259 @@
+schema_version: 1
+config_status: "frozen"
+approved_date: "2026-08-03"
+source_commit: "f3e20eb"
+
+paper:
+  title: "Deep Residual Learning for Image Recognition"
+  arxiv: "1512.03385v1"
+  target_table: "Table 6"
+  resnet20_test_error_percent: 8.75
+  plain20_test_error_percent: null
+
+approval:
+  decision_ids:
+    - "DEC-INIT-001"
+    - "DEC-INIT-002"
+    - "DEC-INIT-003"
+    - "DEC-FC-001"
+    - "DEC-FCBIAS-001"
+    - "DEC-SHORT-001"
+    - "DEC-CONV-001"
+    - "DEC-BN-001A"
+    - "DEC-BN-001B"
+    - "DEC-BN-001C"
+    - "DEC-WD-001"
+    - "DEC-PRE-001"
+    - "DEC-AUG-001"
+    - "DEC-MEANORDER-001"
+    - "DEC-LR-001"
+    - "DEC-CAFFE-001"
+    - "DEC-SHUFFLE-001"
+    - "DEC-RNG-002"
+
+experiment:
+  models:
+    - "plain20"
+    - "resnet20"
+  official_result_checkpoint: "final"
+  max_updates: 64000
+  test_selection_forbidden: true
+
+hardware:
+  device: "cuda"
+  gpu_count: 1
+  expected_gpu: "NVIDIA GeForce RTX 3070 Ti"
+  precision: "fp32"
+  amp: false
+  tf32: false
+  torch_compile: false
+
+reproducibility:
+  seed: 1
+  deterministic_algorithms: true
+  cudnn_benchmark: false
+  save_rng_states: true
+  dataloader_workers: 4
+  worker_seed_policy: "derived_from_base_seed"
+  training_shuffle: true
+  training_replacement_sampling: false
+  test_shuffle: false
+  test_preserve_official_order: true
+  sampler_generator: "derived_from_base_seed"
+  save_sampler_generator_state: true
+  augmentation_rng:
+    scope: "per_sample"
+    seed_components:
+      - "base_seed"
+      - "epoch"
+      - "official_sample_index"
+    worker_assignment_independent: true
+    prefetch_order_independent: true
+    dataset_epoch_required: true
+    training_batch_indices_required: true
+  exact_resume:
+    sampler: "stateful_batch_sampler"
+    progress_cursor: "consumed_samples"
+    mark_consumed_after: "successful_optimizer_update"
+    replay_unconsumed_prefetch: true
+    checkpoint_fields:
+      - "permutation"
+      - "consumed_cursor"
+      - "epoch"
+      - "generator_state"
+
+dataset:
+  name: "CIFAR10"
+  train_size: 50000
+  test_size: 10000
+  num_classes: 10
+  input_shape: [3, 32, 32]
+  official_split: true
+  use_validation_for_main_run: false
+
+preprocessing:
+  input_scale: [0.0, 255.0]
+  standard_deviation_normalization: false
+  mean:
+    type: "per_pixel_image"
+    shape: [3, 32, 32]
+    source: "full_official_training_set"
+    reuse_for_test: true
+  train_order:
+    - "convert_to_float_0_255"
+    - "subtract_per_pixel_mean"
+    - "constant_zero_pad_4"
+    - "random_crop_32"
+    - "random_horizontal_flip"
+  test_order:
+    - "convert_to_float_0_255"
+    - "subtract_per_pixel_mean"
+
+architecture:
+  depth_formula: "6n+2"
+  n: 3
+  weighted_layers: 20
+  convolution_layers: 19
+  fully_connected_layers: 1
+  stem:
+    kernel_size: 3
+    stride: 1
+    padding: 1
+    out_channels: 16
+    bias: false
+  stage_blocks: [3, 3, 3]
+  stage_channels: [16, 32, 64]
+  stage_spatial_sizes: [32, 16, 8]
+  block:
+    type: "post_activation_basic"
+    convolutions_per_block: 2
+    order:
+      - "conv"
+      - "batch_norm"
+      - "relu"
+      - "conv"
+      - "batch_norm"
+      - "add"
+      - "relu"
+  shortcut:
+    type: "option_a"
+    trainable_parameters: false
+    spatial_downsample: "even_index_stride_2"
+    channel_padding: "symmetric_zero"
+    odd_size_policy: "error"
+  global_average_pooling: true
+  classifier:
+    in_features: 64
+    out_features: 10
+    bias: true
+
+initialization:
+  convolution:
+    distribution: "normal"
+    mean: 0.0
+    fan_mode: "fan_in"
+    gain: "sqrt_2"
+  fully_connected:
+    distribution: "normal"
+    mean: 0.0
+    std: 0.01
+    evidence_status: "low_confidence_assumption"
+  bias:
+    fully_connected: 0.0
+  batch_norm:
+    gamma: 1.0
+    beta: 0.0
+
+batch_normalization:
+  enabled: true
+  implementation: "caffe_compatible_scaled_accumulator"
+  affine: true
+  epsilon: 1.0e-5
+  pytorch_momentum: 0.001
+  running_mean_state: "scaled_accumulator"
+  running_variance_state: "scaled_unbiased_accumulator"
+  running_scale_factor: true
+  evaluation_statistics: "accumulator_divided_by_scale_factor"
+  checkpoint_buffers:
+    - "running_mean"
+    - "running_var"
+    - "running_scale"
+    - "num_batches_tracked"
+  synchronized: false
+  evaluation_uses_running_statistics: true
+  post_training_recalibration: false
+  mandatory_compatibility_test: true
+  compatibility_status: "approved_implementation_mandatory_preflight"
+
+optimizer:
+  type: "SGD"
+  batch_size: 128
+  momentum: 0.9
+  weight_decay: 0.0001
+  weight_decay_scope: "all_learnable_parameters"
+  nesterov: false
+
+learning_rate:
+  initial: 0.1
+  schedule_unit: "completed_optimizer_updates"
+  ranges:
+    - first_update: 1
+      last_update: 32000
+      value: 0.1
+    - first_update: 32001
+      last_update: 48000
+      value: 0.01
+    - first_update: 48001
+      last_update: 64000
+      value: 0.001
+
+loss:
+  type: "cross_entropy_from_logits"
+  reduction: "mean"
+  explicit_softmax_in_model: false
+
+evaluation:
+  test_view: "original_32x32_single_view"
+  metric: "test_error_percent"
+  primary_checkpoint: "update_64000_final"
+  best_test_checkpoint_selection: false
+
+logging:
+  train_metrics_interval_updates: 100
+  evaluation_interval_updates: 1000
+  checkpoint_updates:
+    - 32000
+    - 48000
+    - 64000
+  log_learning_rate_every_update: true
+
+preflight:
+  required:
+    - "config_schema_test"
+    - "architecture_test"
+    - "tensor_shape_test"
+    - "weighted_layer_count_test"
+    - "parameter_count_test"
+    - "plain_resnet_parameter_equality_test"
+    - "option_a_shortcut_test"
+    - "initialization_test"
+    - "batch_norm_compatibility_test"
+    - "optimizer_parameter_group_test"
+    - "learning_rate_boundary_test"
+    - "preprocessing_test"
+    - "dataloader_sampling_test"
+    - "dataloader_resume_test"
+    - "test_dataloader_order_test"
+    - "forward_test"
+    - "backward_test"
+    - "smoke_test"
+  formal_training_allowed_only_after_all_pass: true
+
+evidence_notes:
+  option_a_tensor_semantics: "assumption"
+  fc_initialization: "low_confidence_assumption"
+  bn_momentum: "framework_compatibility_assumption"
+  weight_decay_scope: "caffe_default_derived_assumption"
+  preprocessing_order: "assumption"
+  dataloader_ordering: "assumption"
+  final_checkpoint_reporting_form: "project_rule"
